@@ -1,0 +1,14 @@
+stateDiagram-v2
+    [*] --> NEW : CreateOrderCommand
+    NEW --> NEW : AddProductCommand / RemoveProductCommand
+    NEW --> CONFIRMED : ChangeOrderStatusCommand
+    CONFIRMED --> PAID : ChangeOrderStatusCommand
+    PAID --> SHIPPED : ChangeOrderStatusCommand
+    SHIPPED --> DELIVERED : ChangeOrderStatusCommand
+
+    NEW --> CANCELLED : CancelOrderCommand
+    CONFIRMED --> CANCELLED : CancelOrderCommand
+    PAID --> CANCELLED : CancelOrderCommand
+
+    DELIVERED --> [*]
+    CANCELLED --> [*]

@@ -1,0 +1,46 @@
+sequenceDiagram
+    autonumber
+    actor Client as Клиент
+    participant CC as OrderCommandController
+    participant CB as ICommandBus
+    participant H as AddProductCommandHandler
+    participant WR as IOrderWriteRepository
+    participant O as Order
+    participant EP as IEventPublisher
+    participant PR as OrderProjection
+    participant RS as Read Store
+    participant QC as OrderQueryController
+    participant QH as GetOrderQueryHandler
+    participant RR as IOrderReadRepository
+
+    Note over Client,RS: Сторона записи (Command)
+    Client->>CC: POST /orders/{id}/products
+    CC->>CB: send(AddProductCommand)
+    CB->>H: handle(command)
+    H->>WR: getById(orderId)
+    WR-->>H: Order
+    H->>O: addProduct(productId, name, price, qty)
+    alt Статус заказа не NEW
+        O-->>H: Ошибка: изменять состав можно только у NEW
+        H-->>CC: исключение
+        CC-->>Client: 409 Conflict
+    else Статус NEW
+        O->>O: recalculateTotal()
+        O-->>H: ok
+        H->>WR: save(order)
+        H->>EP: publish(ProductAddedEvent)
+        EP->>PR: on(ProductAddedEvent)
+        PR->>RS: обновить денормализованную запись заказа
+        H-->>CC: void
+        CC-->>Client: 204 No Content
+    end
+
+    Note over Client,RS: Сторона чтения (Query)
+    Client->>QC: GET /orders/{id}
+    QC->>QH: ask(GetOrderQuery)
+    QH->>RR: findById(orderId)
+    RR->>RS: SELECT из таблицы чтения
+    RS-->>RR: строка
+    RR-->>QH: OrderDetailsDto
+    QH-->>QC: OrderDetailsDto
+    QC-->>Client: 200 OK + JSON

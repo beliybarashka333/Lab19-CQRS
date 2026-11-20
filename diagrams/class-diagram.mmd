@@ -1,0 +1,275 @@
+classDiagram
+    direction TB
+
+    class OrderStatus {
+        <<enumeration>>
+        NEW
+        CONFIRMED
+        PAID
+        SHIPPED
+        DELIVERED
+        CANCELLED
+    }
+
+    %% ---------- Presentation ----------
+    class OrderCommandController {
+        -ICommandBus commandBus
+        +createOrder(request)
+        +addProduct(orderId, request)
+        +removeProduct(orderId, productId)
+        +changeStatus(orderId, request)
+        +cancelOrder(orderId)
+    }
+
+    class OrderQueryController {
+        -IQueryBus queryBus
+        +getOrder(orderId)
+        +getOrders(page, size)
+        +getCustomerOrders(customerId)
+        +getOrdersByStatus(status)
+        +getStatistics()
+    }
+
+    %% ---------- Command side ----------
+    class ICommandBus {
+        <<interface>>
+        +send(command) void
+    }
+
+    class ICommandHandler~TCommand~ {
+        <<interface>>
+        +handle(TCommand command) void
+    }
+
+    class CreateOrderCommand {
+        +string customerId
+        +List~OrderItemDto~ items
+    }
+    class AddProductCommand {
+        +int orderId
+        +string productId
+        +string productName
+        +decimal unitPrice
+        +int quantity
+    }
+    class RemoveProductCommand {
+        +int orderId
+        +string productId
+    }
+    class ChangeOrderStatusCommand {
+        +int orderId
+        +OrderStatus newStatus
+    }
+    class CancelOrderCommand {
+        +int orderId
+        +string reason
+    }
+
+    class CreateOrderCommandHandler {
+        -IOrderWriteRepository repo
+        -IEventPublisher events
+        +handle(CreateOrderCommand) void
+    }
+    class AddProductCommandHandler {
+        -IOrderWriteRepository repo
+        -IEventPublisher events
+        +handle(AddProductCommand) void
+    }
+    class RemoveProductCommandHandler {
+        -IOrderWriteRepository repo
+        -IEventPublisher events
+        +handle(RemoveProductCommand) void
+    }
+    class ChangeOrderStatusCommandHandler {
+        -IOrderWriteRepository repo
+        -IEventPublisher events
+        +handle(ChangeOrderStatusCommand) void
+    }
+    class CancelOrderCommandHandler {
+        -IOrderWriteRepository repo
+        -IEventPublisher events
+        +handle(CancelOrderCommand) void
+    }
+
+    %% ---------- Write model (domain) ----------
+    class Order {
+        +int id
+        +string customerId
+        +List~OrderItem~ items
+        +decimal totalPrice
+        +datetime createdAt
+        +OrderStatus status
+        +addProduct(productId, name, price, qty) void
+        +removeProduct(productId) void
+        +changeStatus(OrderStatus newStatus) void
+        +cancel(reason) void
+        -recalculateTotal() void
+    }
+    class OrderItem {
+        +string productId
+        +string productName
+        +decimal unitPrice
+        +int quantity
+        +lineTotal() decimal
+    }
+    class IOrderWriteRepository {
+        <<interface>>
+        +getById(int id) Order
+        +save(Order order) void
+    }
+    class IEventPublisher {
+        <<interface>>
+        +publish(DomainEvent event) void
+    }
+    class DomainEvent {
+        <<abstract>>
+        +int orderId
+        +datetime occurredAt
+    }
+    class OrderCreatedEvent
+    class ProductAddedEvent
+    class ProductRemovedEvent
+    class OrderStatusChangedEvent
+    class OrderCancelledEvent
+
+    %% ---------- Query side ----------
+    class IQueryBus {
+        <<interface>>
+        +ask(query) TResult
+    }
+    class IQueryHandler~TQuery~ {
+        <<interface>>
+        +handle(TQuery query) TResult
+    }
+    class GetOrderQuery {
+        +int orderId
+    }
+    class GetOrdersListQuery {
+        +int page
+        +int size
+    }
+    class GetCustomerOrdersQuery {
+        +string customerId
+    }
+    class GetOrdersByStatusQuery {
+        +OrderStatus status
+    }
+    class GetOrderStatisticsQuery
+
+    class GetOrderQueryHandler {
+        -IOrderReadRepository readRepo
+        +handle(GetOrderQuery) OrderDetailsDto
+    }
+    class GetOrdersListQueryHandler {
+        -IOrderReadRepository readRepo
+        +handle(GetOrdersListQuery) List~OrderSummaryDto~
+    }
+    class GetCustomerOrdersQueryHandler {
+        -IOrderReadRepository readRepo
+        +handle(GetCustomerOrdersQuery) List~OrderSummaryDto~
+    }
+    class GetOrdersByStatusQueryHandler {
+        -IOrderReadRepository readRepo
+        +handle(GetOrdersByStatusQuery) List~OrderSummaryDto~
+    }
+    class GetOrderStatisticsQueryHandler {
+        -IOrderReadRepository readRepo
+        +handle(GetOrderStatisticsQuery) OrderStatisticsDto
+    }
+
+    %% ---------- Read model ----------
+    class OrderDetailsDto {
+        +int id
+        +string customerId
+        +List~OrderItemDto~ items
+        +decimal totalPrice
+        +datetime createdAt
+        +string status
+    }
+    class OrderSummaryDto {
+        +int id
+        +string customerId
+        +int itemsCount
+        +decimal totalPrice
+        +datetime createdAt
+        +string status
+    }
+    class OrderStatisticsDto {
+        +int totalOrders
+        +decimal totalRevenue
+        +decimal averageOrderValue
+        +Map~string,int~ countByStatus
+    }
+    class IOrderReadRepository {
+        <<interface>>
+        +findById(int id) OrderDetailsDto
+        +findAll(page, size) List~OrderSummaryDto~
+        +findByCustomer(string customerId) List~OrderSummaryDto~
+        +findByStatus(OrderStatus status) List~OrderSummaryDto~
+        +getStatistics() OrderStatisticsDto
+    }
+    class OrderProjection {
+        -IOrderReadStore store
+        +on(DomainEvent event) void
+    }
+
+    %% ---------- Infrastructure ----------
+    class SqlOrderWriteRepository
+    class SqlOrderReadRepository
+    class InMemoryCommandBus
+    class InMemoryQueryBus
+    class InMemoryEventPublisher
+
+    %% ---------- Relations ----------
+    OrderCommandController --> ICommandBus
+    OrderQueryController --> IQueryBus
+    InMemoryCommandBus ..|> ICommandBus
+    InMemoryQueryBus ..|> IQueryBus
+    InMemoryEventPublisher ..|> IEventPublisher
+
+    CreateOrderCommandHandler ..|> ICommandHandler
+    AddProductCommandHandler ..|> ICommandHandler
+    RemoveProductCommandHandler ..|> ICommandHandler
+    ChangeOrderStatusCommandHandler ..|> ICommandHandler
+    CancelOrderCommandHandler ..|> ICommandHandler
+
+    CreateOrderCommandHandler ..> CreateOrderCommand
+    AddProductCommandHandler ..> AddProductCommand
+    RemoveProductCommandHandler ..> RemoveProductCommand
+    ChangeOrderStatusCommandHandler ..> ChangeOrderStatusCommand
+    CancelOrderCommandHandler ..> CancelOrderCommand
+
+    CreateOrderCommandHandler ..> IOrderWriteRepository
+    AddProductCommandHandler ..> IOrderWriteRepository
+    RemoveProductCommandHandler ..> IOrderWriteRepository
+    ChangeOrderStatusCommandHandler ..> IOrderWriteRepository
+    CancelOrderCommandHandler ..> IOrderWriteRepository
+    CreateOrderCommandHandler ..> IEventPublisher
+
+    Order "1" *-- "1..*" OrderItem
+    Order --> OrderStatus
+    SqlOrderWriteRepository ..|> IOrderWriteRepository
+
+    OrderCreatedEvent --|> DomainEvent
+    ProductAddedEvent --|> DomainEvent
+    ProductRemovedEvent --|> DomainEvent
+    OrderStatusChangedEvent --|> DomainEvent
+    OrderCancelledEvent --|> DomainEvent
+    OrderProjection ..> DomainEvent
+
+    GetOrderQueryHandler ..|> IQueryHandler
+    GetOrdersListQueryHandler ..|> IQueryHandler
+    GetCustomerOrdersQueryHandler ..|> IQueryHandler
+    GetOrdersByStatusQueryHandler ..|> IQueryHandler
+    GetOrderStatisticsQueryHandler ..|> IQueryHandler
+
+    GetOrderQueryHandler ..> IOrderReadRepository
+    GetOrdersListQueryHandler ..> IOrderReadRepository
+    GetCustomerOrdersQueryHandler ..> IOrderReadRepository
+    GetOrdersByStatusQueryHandler ..> IOrderReadRepository
+    GetOrderStatisticsQueryHandler ..> IOrderReadRepository
+
+    SqlOrderReadRepository ..|> IOrderReadRepository
+    IOrderReadRepository ..> OrderDetailsDto
+    IOrderReadRepository ..> OrderSummaryDto
+    IOrderReadRepository ..> OrderStatisticsDto

@@ -1,0 +1,39 @@
+flowchart LR
+    Customer["Клиент"]
+    Manager["Менеджер"]
+
+    subgraph System ["Система заказов (CQRS)"]
+        subgraph Commands ["Команды (запись)"]
+            C1(["CreateOrder"])
+            C2(["AddProduct"])
+            C3(["RemoveProduct"])
+            C4(["ChangeOrderStatus"])
+            C5(["CancelOrder"])
+            V1(["Проверка допустимости перехода статуса"])
+        end
+        subgraph Queries ["Запросы (чтение)"]
+            Q1(["Получить заказ"])
+            Q2(["Получить список заказов"])
+            Q3(["Получить заказы клиента"])
+            Q4(["Получить заказы по статусу"])
+            Q5(["Получить статистику"])
+        end
+    end
+
+    Customer --> C1
+    Customer --> C2
+    Customer --> C3
+    Customer --> C5
+    Customer --> Q1
+    Customer --> Q3
+
+    Manager --> C4
+    Manager --> C5
+    Manager --> Q1
+    Manager --> Q2
+    Manager --> Q3
+    Manager --> Q4
+    Manager --> Q5
+
+    C4 -.->|include| V1
+    C5 -.->|include| V1
